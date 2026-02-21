@@ -36,10 +36,9 @@ class RoomManager:
         # If someone is already waiting, match immediately
         if self._waiting is not None:
             partner = self._waiting
+            waiting_event = self._waiting_event
             self._waiting = None
-            if self._waiting_event:
-                self._waiting_event.set()
-                self._waiting_event = None
+            self._waiting_event = None
 
             room_id = uuid.uuid4().hex[:8]
             room = Room(room_id=room_id)
@@ -51,23 +50,44 @@ class RoomManager:
             player = Player(ws=ws, player_id=2)
             room.players[2] = player
 
-            # Notify both
-            await partner.ws.send_json({
-                "type": "joined",
-                "player_id": 1,
-                "players_in_room": 2,
-            })
+            # Signal the waiting player that they've been matched.
+            # Their inline waiting loop will exit and they'll start
+            # their own _run_player.
+            if waiting_event:
+                waiting_event.set()
+
+            # Notify both — handle partner disconnect gracefully
+            try:
+                await partner.ws.send_json({
+                    "type": "joined",
+                    "player_id": 1,
+                    "players_in_room": 2,
+                })
+            except Exception:
+                # Partner's connection is dead, fall back to AI for this player
+                room.players.pop(1, None)
+                self.rooms.pop(room_id, None)
+                await self._start_ai_battle(player, ws)
+                return
+
             await ws.send_json({
                 "type": "joined",
                 "player_id": 2,
                 "players_in_room": 2,
             })
             for p in room.players.values():
-                await p.ws.send_json({
-                    "type": "both_joined",
-                    "player_id": p.player_id,
-                })
+                if p.ws is not None:
+                    try:
+                        await p.ws.send_json({
+                            "type": "both_joined",
+                            "player_id": p.player_id,
+                        })
+                    except Exception:
+                        pass
 
+            # Only run this player's message loop.
+            # The partner's handle_connection will run their own _run_player
+            # after their waiting loop exits.
             await self._run_player(room, player)
             return
 
@@ -76,37 +96,48 @@ class RoomManager:
         self._waiting = player
         event = asyncio.Event()
         self._waiting_event = event
-        self._skip_requested = False
 
         await ws.send_json({
             "type": "waiting",
         })
 
-        # Listen for skip message while waiting
-        async def listen_for_skip():
-            while not event.is_set():
-                try:
-                    data = await asyncio.wait_for(ws.receive_text(), timeout=1.0)
-                    msg = json.loads(data)
-                    if msg.get("type") == "skip":
-                        self._skip_requested = True
-                        event.set()
-                        return
-                except asyncio.TimeoutError:
-                    continue
-                except Exception:
-                    return
+        # Wait for match, skip, or timeout (30s).
+        # Single inline loop — no separate task, no concurrent WebSocket readers.
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + 30.0
+        skip_requested = False
+        disconnected = False
 
-        skip_task = asyncio.create_task(listen_for_skip())
+        while not event.is_set():
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            try:
+                data = await asyncio.wait_for(
+                    ws.receive_text(),
+                    timeout=min(remaining, 1.0),
+                )
+                msg = json.loads(data)
+                if msg.get("type") == "skip":
+                    skip_requested = True
+                    break
+            except asyncio.TimeoutError:
+                continue
+            except Exception:
+                # Connection lost while waiting
+                disconnected = True
+                break
 
-        # Wait up to 30s for a match or skip
-        try:
-            await asyncio.wait_for(event.wait(), timeout=30.0)
-        except asyncio.TimeoutError:
-            pass
+        if disconnected:
+            if self._waiting is player:
+                self._waiting = None
+                self._waiting_event = None
+            return
 
-        skip_task.cancel()
-        matched_by_opponent = not self._skip_requested and self._waiting is not player
+        matched_by_opponent = (
+            not skip_requested
+            and self._waiting is not player
+        )
 
         if not matched_by_opponent:
             # No opponent found or skip — create AI opponent
@@ -120,7 +151,11 @@ class RoomManager:
         # Matched! Find which room this player was placed in
         room = None
         for r in self.rooms.values():
-            if player.player_id in [p.player_id for p in r.players.values() if p.ws is player.ws]:
+            if player.player_id in [
+                p.player_id
+                for p in r.players.values()
+                if p.ws is player.ws
+            ]:
                 room = r
                 break
 
@@ -237,7 +272,10 @@ class RoomManager:
             # Notify opponent that this player's character is ready
             for p in room.players.values():
                 if p.player_id != player.player_id and p.ws is not None:
-                    await p.ws.send_json({"type": "opponent_character_ready"})
+                    try:
+                        await p.ws.send_json({"type": "opponent_character_ready"})
+                    except Exception:
+                        pass
 
         except Exception as e:
             await player.ws.send_json({
@@ -251,7 +289,10 @@ class RoomManager:
         # Notify opponent
         for p in room.players.values():
             if p.player_id != player.player_id and p.ws is not None:
-                await p.ws.send_json({"type": "opponent_ready"})
+                try:
+                    await p.ws.send_json({"type": "opponent_ready"})
+                except Exception:
+                    pass
 
         # Check if both players are ready
         all_ready = (
@@ -269,14 +310,14 @@ class RoomManager:
 
         for p in room.players.values():
             if p.ws is not None:
-                await p.ws.send_json({
-                    "type": "battle_start",
-                    "player1": {"player_id": p1.player_id, "character": p1.character},
-                    "player2": {"player_id": p2.player_id, "character": p2.character},
-                })
-
-        players = list(room.players.values())
-        p1, p2 = players[0], players[1]
+                try:
+                    await p.ws.send_json({
+                        "type": "battle_start",
+                        "player1": {"player_id": p1.player_id, "character": p1.character},
+                        "player2": {"player_id": p2.player_id, "character": p2.character},
+                    })
+                except Exception:
+                    pass
 
         try:
             result, _ = await asyncio.gather(
@@ -303,15 +344,21 @@ class RoomManager:
             room.state = "finished"
             for p in room.players.values():
                 if p.ws is not None:
-                    await p.ws.send_json(battle_result)
+                    try:
+                        await p.ws.send_json(battle_result)
+                    except Exception:
+                        pass
 
         except Exception as e:
             for p in room.players.values():
                 if p.ws is not None:
-                    await p.ws.send_json({
-                        "type": "error",
-                        "message": f"バトル処理に失敗しました: {str(e)}",
-                    })
+                    try:
+                        await p.ws.send_json({
+                            "type": "error",
+                            "message": f"バトル処理に失敗しました: {str(e)}",
+                        })
+                    except Exception:
+                        pass
 
     async def _handle_disconnect(self, room: Room, player: Player):
         room.players.pop(player.player_id, None)
