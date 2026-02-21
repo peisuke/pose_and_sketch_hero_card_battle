@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POSE & SKETCH HERO CARD BATTLE</title>
+<link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+    background: #0a0a1a;
+    color: #e0e0e0;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .screen {
+    display: none;
+    width: 100%;
+    min-height: 100vh;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .screen.active {
+    display: flex;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    background: linear-gradient(135deg, #f093fb, #f5576c, #fda085);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 10px;
+  }
+
+  .subtitle {
+    color: #888;
+    margin-bottom: 40px;
+    font-size: 1.1rem;
+  }
+
+  .btn {
+    padding: 14px 40px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 20px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #f5576c, #ff6b6b);
+    color: #fff;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(245, 87, 108, 0.4);
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  .btn-secondary {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+  }
+  .btn-secondary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  }
+
+  /* Waiting screen */
+  .spinner {
+    width: 60px; height: 60px;
+    border: 4px solid #333;
+    border-top-color: #f5576c;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 30px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .waiting-text {
+    font-size: 1.3rem;
+    color: #aaa;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Camera screen */
+  .camera-container {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 3px solid #333;
+    margin-bottom: 20px;
+    background: #000;
+  }
+  #cameraVideo {
+    display: block;
+    max-width: 100%;
+    width: 480px;
+    height: 360px;
+    object-fit: cover;
+  }
+  #cameraCanvas { display: none; }
+  #capturedPreview {
+    display: none;
+    max-width: 100%;
+    width: 480px;
+    height: 360px;
+    object-fit: cover;
+  }
+
+  .camera-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* File upload fallback */
+  .file-upload-area {
+    display: none;
+    border: 3px dashed #444;
+    border-radius: 16px;
+    padding: 40px;
+    text-align: center;
+    margin-bottom: 20px;
+    cursor: pointer;
+    transition: border-color 0.3s;
+    width: 480px;
+    max-width: 100%;
+  }
+  .file-upload-area:hover { border-color: #f5576c; }
+  .file-upload-area p { color: #888; margin-top: 10px; }
+  #fileInput { display: none; }
+
+  /* Character screen */
+  #screen-character {
+    background-image: url('/static/images/card_bg.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: #0c0905;
+    padding: 0;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0;
+  }
+  .character-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100vh;
+    padding: 40px;
+    gap: 32px;
+  }
+  .character-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+  .character-left .btn {
+    width: 100%;
+    max-width: 400px;
+    padding: 18px 40px;
+    font-size: 1.3rem;
+  }
+  .character-image {
+    width: 400px;
+    height: 400px;
+    border-radius: 16px;
+    object-fit: cover;
+    border: 4px solid rgba(255, 255, 255, 0.15);
+    background: #111;
+    display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .character-image.loaded { display: block; }
+  .character-image-placeholder {
+    width: 400px;
+    height: 400px;
+    border-radius: 16px;
+    background: rgba(17, 17, 17, 0.7);
+    border: 2px dashed #444;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #555;
+    font-size: 1rem;
+  }
+  .character-card {
+    background: rgba(22, 33, 62, 0.85);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 28px 32px;
+    width: 400px;
+    max-width: 100%;
+    text-align: left;
+    backdrop-filter: blur(8px);
+  }
+  .character-name {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #e0e0e0;
+    margin-bottom: 16px;
+  }
+  .stat-row {
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+  }
+  .stat-label {
+    width: 60px;
+    text-align: right;
+    padding-right: 12px;
+    font-size: 0.85rem;
+    color: #999;
+  }
+  .stat-bar-bg {
+    flex: 1;
+    height: 18px;
+    background: rgba(17,17,17,0.6);
+    border-radius: 9px;
+    overflow: hidden;
+  }
+  .stat-bar {
+    height: 100%;
+    border-radius: 9px;
+    transition: width 1s ease;
+  }
+  .stat-hp .stat-bar { background: linear-gradient(90deg, #43e97b, #38f9d7); }
+  .stat-atk .stat-bar { background: linear-gradient(90deg, #f5576c, #ff6b6b); }
+  .stat-def .stat-bar { background: linear-gradient(90deg, #667eea, #764ba2); }
+  .stat-spd .stat-bar { background: linear-gradient(90deg, #fda085, #f6d365); }
+  .stat-value {
+    width: 40px;
+    text-align: right;
+    font-size: 0.85rem;
+    color: #ccc;
+    padding-left: 8px;
+  }
+  .attribute-badge {
+    display: inline-block;
+    padding: 6px 20px;
+    border-radius: 20px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+  }
+  .attribute-badge.attr-slash { background: linear-gradient(135deg, #f5576c, #ff6b6b); color: #fff; }
+  .attribute-badge.attr-strike { background: linear-gradient(135deg, #fda085, #f6d365); color: #333; }
+  .attribute-badge.attr-shield { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+  .attribute-badge.attr-poison { background: linear-gradient(135deg, #43e97b, #38f9d7); color: #333; }
+
+  .power-display {
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+    color: #ccc;
+  }
+  .power-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #fda085;
+  }
+
+  .special-move {
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(245, 87, 108, 0.1);
+    border: 1px solid rgba(245, 87, 108, 0.3);
+    border-radius: 12px;
+  }
+  .special-move-label { color: #f5576c; font-size: 0.85rem; }
+  .special-move-name { font-size: 1.2rem; font-weight: bold; color: #fda085; margin-top: 4px; }
+  .character-desc {
+    margin-top: 14px;
+    color: #999;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .character-status {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: #888;
+  }
+
+  /* Character screen responsive */
+  @media (max-width: 860px) {
+    .character-layout {
+      flex-direction: column;
+      padding: 20px;
+      height: auto;
+      min-height: 100vh;
+    }
+    .character-image, .character-image-placeholder {
+      width: 280px;
+      height: 280px;
+    }
+    .character-card {
+      width: 100%;
+      max-width: 400px;
+    }
+    .character-left .btn {
+      max-width: 280px;
+    }
+  }
+
+  /* Battle screen */
+  .battle-arena {
+    width: 100%;
+    max-width: 800px;
+    text-align: center;
+    position: relative;
+  }
+  .battle-vs {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    position: relative;
+  }
+  .battle-char {
+    background: linear-gradient(145deg, #1a1a2e, #16213e);
+    border: 2px solid #333;
+    border-radius: 16px;
+    padding: 20px;
+    width: 250px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .battle-char-img {
+    width: 150px;
+    height: 150px;
+    border-radius: 12px;
+    object-fit: cover;
+    margin-bottom: 10px;
+    border: 2px solid #333;
+    background: #111;
+    display: none;
+  }
+  .battle-char-img.loaded { display: block; }
+  .battle-char-name {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #fda085;
+  }
+  .battle-char-special {
+    font-size: 0.9rem;
+    color: #f5576c;
+    margin-top: 6px;
+  }
+  .vs-text {
+    font-size: 2.5rem;
+    font-weight: bold;
+    background: linear-gradient(135deg, #f5576c, #fda085);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .vs-text.visible { opacity: 1; }
+
+  .battle-progress {
+    margin: 20px 0;
+  }
+
+  /* Battle animations */
+  @keyframes slideInLeft {
+    from { transform: translateX(-200px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes slideInRight {
+    from { transform: translateX(200px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes vsFlash {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.5); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes screenFlash {
+    0% { opacity: 0; }
+    30% { opacity: 0.7; }
+    100% { opacity: 0; }
+  }
+  @keyframes attackLeft {
+    0% { transform: translateX(0); }
+    30% { transform: translateX(30px); }
+    60% { transform: translateX(-5px); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes attackRight {
+    0% { transform: translateX(0); }
+    30% { transform: translateX(-30px); }
+    60% { transform: translateX(5px); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes hitShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+  @keyframes energyBurst {
+    0% { transform: scale(0); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.8; }
+    100% { transform: scale(2); opacity: 0; }
+  }
+  @keyframes glitchText {
+    0%, 100% { text-shadow: 2px 0 #f5576c, -2px 0 #667eea; }
+    25% { text-shadow: -2px 2px #f5576c, 2px -2px #667eea; }
+    50% { text-shadow: 2px -2px #fda085, -2px 2px #43e97b; }
+    75% { text-shadow: -2px 0 #667eea, 2px 0 #f5576c; }
+  }
+  @keyframes goldenGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(253, 160, 133, 0.4); }
+    50% { box-shadow: 0 0 40px rgba(253, 160, 133, 0.8), 0 0 80px rgba(245, 87, 108, 0.3); }
+  }
+  @keyframes resultBounce {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.3); opacity: 1; }
+    70% { transform: scale(0.9); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .slide-in-left { animation: slideInLeft 0.6s ease-out forwards; }
+  .slide-in-right { animation: slideInRight 0.6s ease-out forwards; }
+  .vs-flash { animation: vsFlash 0.5s ease-out forwards; }
+  .attack-left { animation: attackLeft 0.4s ease-out; }
+  .attack-right { animation: attackRight 0.4s ease-out; }
+  .hit-shake { animation: hitShake 0.4s ease-out; }
+  .golden-glow {
+    border-color: #fda085 !important;
+    animation: goldenGlow 1s ease-in-out infinite;
+  }
+  .result-bounce { animation: resultBounce 0.8s ease-out forwards; }
+
+  #screenFlash {
+    position: fixed;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100;
+  }
+  #screenFlash.flash { animation: screenFlash 0.4s ease-out forwards; }
+
+  #energyClash {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 60px;
+    height: 60px;
+    margin: -30px 0 0 -30px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fda085, #f5576c, transparent);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #energyClash.burst { animation: energyBurst 0.5s ease-out forwards; }
+
+  .battle-text {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #f5576c;
+    letter-spacing: 6px;
+    animation: glitchText 0.5s ease-in-out infinite;
+  }
+
+  /* Result screen */
+  .result-text {
+    font-size: 4rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+    letter-spacing: 8px;
+    opacity: 0;
+  }
+  .result-text.result-bounce { opacity: 1; }
+  .result-win {
+    background: linear-gradient(135deg, #f6d365, #fda085);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .result-lose {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .result-reason {
+    font-size: 1.1rem;
+    color: #fda085;
+    margin-bottom: 20px;
+  }
+  #confettiCanvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  /* Error toast */
+  .toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #ff4444;
+    color: #fff;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s;
+    max-width: 400px;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  #countdown {
+    color: #f5576c;
+    font-weight: bold;
+  }
+
+  /* Title screen layout */
+  #screen-start {
+    padding: 0;
+    justify-content: flex-start;
+  }
+  .title-hero {
+    width: 100%;
+    max-height: 50vh;
+    object-fit: cover;
+    display: block;
+  }
+  .title-overlay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    width: 100%;
+    padding: 30px 20px;
+    background: rgba(10, 10, 26, 0.85);
+  }
+  .title-overlay h1 {
+    font-size: 2rem;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  /* Camera screen background */
+  #screen-camera {
+    background-image: url('/static/images/summon_bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  /* Battle screen background */
+  #screen-battle {
+    background-image: url('/static/images/battle_bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  /* Result screen background */
+  #screen-result {
+    background-image: url('/static/images/battle_bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+</style>
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+<div id="screenFlash"></div>
+
+<!-- START Screen -->
+<div id="screen-start" class="screen active">
+  <img src="/static/images/title_screen.jpg" alt="POSE & SKETCH HERO CARD BATTLE" class="title-hero">
+  <div class="title-overlay">
+    <h1>POSE & SKETCH<br>HERO CARD BATTLE</h1>
+    <p class="subtitle">ポーズ&スケッチでヒーローカードを召喚し、バトル!</p>
+    <button class="btn btn-primary" id="btnStart" onclick="startMatchmaking()">START</button>
+  </div>
+</div>
+
+<!-- WAITING Screen -->
+<div id="screen-waiting" class="screen">
+  <div class="spinner"></div>
+  <p class="waiting-text">対戦相手を探しています... <span id="countdown">30</span>秒</p>
+  <button class="btn btn-secondary" id="btnSkip" onclick="skipMatchmaking()" style="margin-top: 30px;">SKIP - AI と対戦</button>
+</div>
+
+<!-- CAMERA Screen -->
+<div id="screen-camera" class="screen">
+  <h2 style="margin-bottom: 20px; color: #fda085;">キャラクターを撮影しよう</h2>
+
+  <div class="camera-container" id="cameraContainer">
+    <video id="cameraVideo" autoplay playsinline></video>
+    <img id="capturedPreview" alt="captured">
+  </div>
+
+  <div class="file-upload-area" id="fileUploadArea" onclick="document.getElementById('fileInput').click()">
+    <p style="font-size: 1.3rem; color: #f5576c;">📁 ファイルを選択</p>
+    <p>タップしてカメラロールから画像を選択</p>
+    <input type="file" id="fileInput" accept="image/*" onchange="handleFileSelect(event)">
+  </div>
+
+  <div class="camera-buttons">
+    <button class="btn btn-primary" id="btnCapture" onclick="captureImage()">CAPTURE</button>
+    <button class="btn btn-secondary" id="btnRetake" onclick="retakeImage()" style="display:none;">RETAKE</button>
+    <button class="btn btn-primary" id="btnSubmitImage" onclick="submitImage()" style="display:none;">SUBMIT</button>
+  </div>
+
+  <div id="analyzingIndicator" style="display:none; margin-top: 20px; text-align: center;">
+    <div class="spinner" style="margin: 0 auto 10px;"></div>
+    <p class="waiting-text">キャラクター生成中...</p>
+  </div>
+</div>
+
+<!-- Summon Effect Overlay -->
+<div id="summonOverlay" style="display:none; position:fixed; inset:0; z-index:80; background:#0c0905;">
+  <div style="position:absolute; inset:0; background-image:url('https://www.transparenttextures.com/patterns/stardust.png'); opacity:0.15; pointer-events:none; z-index:5;"></div>
+  <div style="position:absolute; inset:0; background:radial-gradient(circle at 50% -20%, rgba(212,175,55,0.25) 0%, transparent 85%); pointer-events:none; z-index:2;"></div>
+  <canvas id="summonCanvas" style="position:absolute; top:0; left:0; z-index:0;"></canvas>
+  <div style="position:absolute; bottom:60px; width:100%; text-align:center; z-index:10;">
+    <p style="font-family:'Cinzel',serif; font-size:1.5rem; color:#d4af37; letter-spacing:4px; animation:pulse 2s ease-in-out infinite;">SUMMONING...</p>
+  </div>
+</div>
+
+<!-- CHARACTER Screen -->
+<div id="screen-character" class="screen">
+  <div class="character-layout">
+    <div class="character-left">
+      <div class="character-image-placeholder" id="charImagePlaceholder"><div class="spinner" style="margin-bottom:10px;"></div>画像生成中...</div>
+      <img class="character-image" id="charImage" alt="character">
+      <button class="btn btn-primary" id="btnReady" onclick="sendReady()">READY</button>
+    </div>
+    <div class="character-card">
+      <div class="character-name" id="charName"></div>
+      <div id="charAttribute"></div>
+      <div class="power-display" id="charPower"></div>
+      <div id="charStats">
+        <div class="stat-row stat-hp">
+          <span class="stat-label">HP</span>
+          <div class="stat-bar-bg"><div class="stat-bar" id="barHp"></div></div>
+          <span class="stat-value" id="valHp"></span>
+        </div>
+        <div class="stat-row stat-atk">
+          <span class="stat-label">攻撃</span>
+          <div class="stat-bar-bg"><div class="stat-bar" id="barAtk"></div></div>
+          <span class="stat-value" id="valAtk"></span>
+        </div>
+        <div class="stat-row stat-def">
+          <span class="stat-label">防御</span>
+          <div class="stat-bar-bg"><div class="stat-bar" id="barDef"></div></div>
+          <span class="stat-value" id="valDef"></span>
+        </div>
+        <div class="stat-row stat-spd">
+          <span class="stat-label">素早さ</span>
+          <div class="stat-bar-bg"><div class="stat-bar" id="barSpd"></div></div>
+          <span class="stat-value" id="valSpd"></span>
+        </div>
+      </div>
+      <div class="special-move">
+        <div class="special-move-label">必殺技</div>
+        <div class="special-move-name" id="charSpecial"></div>
+      </div>
+      <div class="character-desc" id="charDesc"></div>
+      <div class="character-status" id="charStatus"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BATTLE Screen -->
+<div id="screen-battle" class="screen">
+  <h2 style="margin-bottom: 20px; color: #f5576c;">BATTLE!</h2>
+  <div class="battle-arena">
+    <div class="battle-vs">
+      <div class="battle-char" id="battleCharLeft" style="opacity:0;">
+        <img class="battle-char-img" id="battle-p1-img" alt="">
+        <div class="battle-char-name" id="battle-p1-name"></div>
+        <div id="battle-p1-attr"></div>
+        <div class="battle-char-special" id="battle-p1-special"></div>
+      </div>
+      <div class="vs-text" id="vsText">VS</div>
+      <div id="energyClash"></div>
+      <div class="battle-char" id="battleCharRight" style="opacity:0;">
+        <img class="battle-char-img" id="battle-p2-img" alt="">
+        <div class="battle-char-name" id="battle-p2-name"></div>
+        <div id="battle-p2-attr"></div>
+        <div class="battle-char-special" id="battle-p2-special"></div>
+      </div>
+    </div>
+    <div class="battle-progress" id="battleProgress">
+      <p class="battle-text">戦闘中</p>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT Screen -->
+<div id="screen-result" class="screen">
+  <canvas id="confettiCanvas"></canvas>
+  <div class="result-text" id="resultText"></div>
+  <div class="result-reason" id="resultReason"></div>
+  <button class="btn btn-secondary" onclick="rematch()">REMATCH</button>
+</div>
+
+<script>
+  // ---- Audio ----
+  const seClick = new Audio('/static/se_click.mp3');
+  const seWin = new Audio('/static/se_win.mp3');
+  const seLose = new Audio('/static/se_lose.mp3');
+  const seBattle = new Audio('/static/se_battle.mp3');
+  const seSummon = new Audio('/static/se_summon.mp3');
+  const bgm = new Audio('/static/bgm_loop.mp3');
+  bgm.loop = true;
+  bgm.volume = 0.4;
+  seBattle.volume = 0.5;
+
+  function playSE(audio) {
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  }
+  function stopAudio(audio) {
+    audio.pause();
+    audio.currentTime = 0;
+  }
+
+  let ws = null;
+  let myPlayerId = null;
+  let myCharacter = null;
+  let capturedBase64 = null;
+  let cameraStream = null;
+  let countdownTimer = null;
+  let battleAnimInterval = null;
+  let confettiRAF = null;
+
+  // ---- Screen management ----
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + id).classList.add('active');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 4000);
+  }
+
+  // ---- START ----
+  function startMatchmaking() {
+    playSE(seClick);
+    bgm.play().catch(() => {});
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      handleServerMessage(msg);
+    };
+    ws.onclose = () => {
+      stopCountdown();
+      if (myPlayerId) {
+        showToast('接続が切断されました');
+      }
+    };
+    ws.onerror = () => {
+      stopCountdown();
+      showToast('接続エラーが発生しました');
+    };
+
+    showScreen('waiting');
+    startCountdown(30);
+  }
+
+  function skipMatchmaking() {
+    if (!ws) return;
+    playSE(seClick);
+    document.getElementById('btnSkip').disabled = true;
+    ws.send(JSON.stringify({ type: 'skip' }));
+  }
+
+  function startCountdown(seconds) {
+    let remaining = seconds;
+    const el = document.getElementById('countdown');
+    el.textContent = remaining;
+    countdownTimer = setInterval(() => {
+      remaining--;
+      el.textContent = remaining;
+      if (remaining <= 0) stopCountdown();
+    }, 1000);
+  }
+
+  function stopCountdown() {
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  }
+
+  // ---- Message handler ----
+  function handleServerMessage(msg) {
+    switch (msg.type) {
+      case 'waiting':
+        break;
+
+      case 'joined':
+        myPlayerId = msg.player_id;
+        break;
+
+      case 'both_joined':
+        stopCountdown();
+        openCamera();
+        break;
+
+      case 'timeout':
+        stopCountdown();
+        showToast(msg.message);
+        setTimeout(() => {
+          showScreen('start');
+          resetState();
+        }, 2000);
+        break;
+
+      case 'error':
+        showToast(msg.message);
+        break;
+
+      case 'character_generated':
+        stopSummonEffect();
+        myCharacter = msg.character;
+        displayCharacter(msg.character);
+        showScreen('character');
+        break;
+
+      case 'character_image':
+        if (myCharacter) myCharacter.image = msg.image;
+        showCharacterImage(msg.image);
+        break;
+
+      case 'opponent_character_ready':
+        updateCharacterStatus();
+        break;
+
+      case 'opponent_ready':
+        updateCharacterStatus();
+        break;
+
+      case 'battle_start':
+        showBattleScreen(msg);
+        break;
+
+      case 'battle_result':
+        showResult(msg);
+        break;
+
+      case 'opponent_disconnected':
+        showToast('対戦相手が切断しました');
+        setTimeout(() => {
+          showScreen('start');
+          resetState();
+        }, 2000);
+        break;
+    }
+  }
+
+  // ---- Camera ----
+  async function openCamera() {
+    showScreen('camera');
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'environment' }
+      });
+      const video = document.getElementById('cameraVideo');
+      video.srcObject = cameraStream;
+    } catch (err) {
+      document.getElementById('cameraContainer').style.display = 'none';
+      document.getElementById('btnCapture').style.display = 'none';
+      document.getElementById('fileUploadArea').style.display = 'block';
+    }
+  }
+
+  function captureImage() {
+    playSE(seClick);
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('cameraCanvas');
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, 640, 480);
+
+    capturedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+    const preview = document.getElementById('capturedPreview');
+    preview.src = capturedBase64;
+    preview.style.display = 'block';
+    video.style.display = 'none';
+
+    document.getElementById('btnCapture').style.display = 'none';
+    document.getElementById('btnRetake').style.display = '';
+    document.getElementById('btnSubmitImage').style.display = '';
+  }
+
+  function retakeImage() {
+    capturedBase64 = null;
+    const video = document.getElementById('cameraVideo');
+    const preview = document.getElementById('capturedPreview');
+    preview.style.display = 'none';
+    video.style.display = 'block';
+
+    document.getElementById('btnCapture').style.display = '';
+    document.getElementById('btnRetake').style.display = 'none';
+    document.getElementById('btnSubmitImage').style.display = 'none';
+  }
+
+  function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      capturedBase64 = e.target.result;
+
+      const container = document.getElementById('cameraContainer');
+      container.style.display = 'block';
+      const preview = document.getElementById('capturedPreview');
+      preview.src = capturedBase64;
+      preview.style.display = 'block';
+      document.getElementById('cameraVideo').style.display = 'none';
+      document.getElementById('fileUploadArea').style.display = 'none';
+
+      document.getElementById('btnCapture').style.display = 'none';
+      document.getElementById('btnRetake').style.display = 'none';
+      document.getElementById('btnSubmitImage').style.display = '';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function submitImage() {
+    if (!capturedBase64 || !ws) return;
+    playSE(seClick);
+    ws.send(JSON.stringify({
+      type: 'image_submit',
+      image_data: capturedBase64
+    }));
+
+    document.getElementById('btnSubmitImage').style.display = 'none';
+    document.getElementById('btnRetake').style.display = 'none';
+    document.getElementById('analyzingIndicator').style.display = 'block';
+    startSummonEffect();
+
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+      cameraStream = null;
+    }
+  }
+
+  // ---- Character display ----
+  function showCharacterImage(imageDataUrl) {
+    const img = document.getElementById('charImage');
+    const placeholder = document.getElementById('charImagePlaceholder');
+    img.src = imageDataUrl;
+    img.classList.add('loaded');
+    placeholder.style.display = 'none';
+  }
+
+  const ATTRIBUTE_CLASSES = {
+    '斬撃': 'attr-slash',
+    '打撃': 'attr-strike',
+    '盾': 'attr-shield',
+    '毒': 'attr-poison',
+  };
+
+  function setAttributeBadge(container, attribute, power) {
+    container.textContent = '';
+    if (!attribute) return;
+    const span = document.createElement('span');
+    span.className = 'attribute-badge ' + (ATTRIBUTE_CLASSES[attribute] || 'attr-strike');
+    span.textContent = attribute;
+    container.appendChild(span);
+    if (power != null) {
+      const powerSpan = document.createElement('span');
+      powerSpan.style.cssText = 'margin-left:8px;font-size:0.9rem;color:#ccc;';
+      powerSpan.textContent = '(' + power + ')';
+      container.appendChild(powerSpan);
+    }
+  }
+
+  function displayCharacter(c) {
+    document.getElementById('charName').textContent = c.name;
+
+    setAttributeBadge(document.getElementById('charAttribute'), c.attribute, null);
+
+    const powerEl = document.getElementById('charPower');
+    if (c.power != null) {
+      powerEl.textContent = '';
+      const label = document.createTextNode('POWER: ');
+      const val = document.createElement('span');
+      val.className = 'power-value';
+      val.textContent = c.power;
+      const suffix = document.createTextNode(' / 100');
+      powerEl.appendChild(label);
+      powerEl.appendChild(val);
+      powerEl.appendChild(suffix);
+    } else {
+      powerEl.textContent = '';
+    }
+
+    document.getElementById('valHp').textContent = c.hp;
+    document.getElementById('valAtk').textContent = c.attack;
+    document.getElementById('valDef').textContent = c.defense;
+    document.getElementById('valSpd').textContent = c.speed;
+
+    setTimeout(() => {
+      document.getElementById('barHp').style.width = (c.hp / 200 * 100) + '%';
+      document.getElementById('barAtk').style.width = (c.attack / 100 * 100) + '%';
+      document.getElementById('barDef').style.width = (c.defense / 100 * 100) + '%';
+      document.getElementById('barSpd').style.width = (c.speed / 100 * 100) + '%';
+    }, 100);
+
+    document.getElementById('charSpecial').textContent = c.special_move;
+    document.getElementById('charDesc').textContent = c.description;
+    document.getElementById('charStatus').textContent = '';
+  }
+
+  let opponentCharReady = false;
+  let opponentIsReady = false;
+
+  function updateCharacterStatus() {
+    opponentCharReady = true;
+    const statusEl = document.getElementById('charStatus');
+
+    if (opponentIsReady) {
+      statusEl.textContent = '相手はREADYです！';
+    } else if (opponentCharReady) {
+      statusEl.textContent = '相手のキャラクターが生成されました';
+    }
+  }
+
+  function sendReady() {
+    if (!ws) return;
+    playSE(seClick);
+    ws.send(JSON.stringify({ type: 'ready' }));
+    document.getElementById('btnReady').disabled = true;
+    document.getElementById('btnReady').textContent = 'WAITING...';
+    document.getElementById('charStatus').textContent = '相手を待っています...';
+  }
+
+  // ---- Battle ----
+  function showBattleScreen(msg) {
+    stopAudio(bgm);
+    playSE(seBattle);
+    const p1 = msg.player1;
+    const p2 = msg.player2;
+    const left = document.getElementById('battleCharLeft');
+    const right = document.getElementById('battleCharRight');
+    const vs = document.getElementById('vsText');
+
+    // Reset state
+    left.style.opacity = '0';
+    left.className = 'battle-char';
+    right.style.opacity = '0';
+    right.className = 'battle-char';
+    vs.className = 'vs-text';
+
+    // Fill content
+    document.getElementById('battle-p1-name').textContent = p1.character.name;
+    setAttributeBadge(document.getElementById('battle-p1-attr'), p1.character.attribute, p1.character.power);
+    document.getElementById('battle-p1-special').textContent = '必殺技: ' + p1.character.special_move;
+    document.getElementById('battle-p2-name').textContent = p2.character.name;
+    setAttributeBadge(document.getElementById('battle-p2-attr'), p2.character.attribute, p2.character.power);
+    document.getElementById('battle-p2-special').textContent = '必殺技: ' + p2.character.special_move;
+
+    const img1 = document.getElementById('battle-p1-img');
+    const img2 = document.getElementById('battle-p2-img');
+    if (p1.character.image) {
+      img1.src = p1.character.image;
+      img1.classList.add('loaded');
+    }
+    if (p2.character.image) {
+      img2.src = p2.character.image;
+      img2.classList.add('loaded');
+    }
+
+    showScreen('battle');
+    document.getElementById('battleProgress').style.display = 'block';
+
+    // Intro sequence
+    // 1. Cards slide in
+    setTimeout(() => {
+      left.style.opacity = '';
+      left.classList.add('slide-in-left');
+    }, 100);
+    setTimeout(() => {
+      right.style.opacity = '';
+      right.classList.add('slide-in-right');
+    }, 250);
+
+    // 2. VS flash
+    setTimeout(() => {
+      vs.classList.add('visible', 'vs-flash');
+    }, 700);
+
+    // 3. Screen flash
+    setTimeout(() => {
+      const flash = document.getElementById('screenFlash');
+      flash.classList.remove('flash');
+      void flash.offsetWidth; // force reflow
+      flash.classList.add('flash');
+    }, 1000);
+
+    // 4. Start attack exchange
+    setTimeout(() => startAttackExchange(), 1400);
+  }
+
+  function startAttackExchange() {
+    stopAttackExchange();
+    let turn = 0;
+    const left = document.getElementById('battleCharLeft');
+    const right = document.getElementById('battleCharRight');
+    const clash = document.getElementById('energyClash');
+
+    battleAnimInterval = setInterval(() => {
+      // Remove previous animations
+      left.classList.remove('attack-left', 'hit-shake');
+      right.classList.remove('attack-right', 'hit-shake');
+      clash.classList.remove('burst');
+      void clash.offsetWidth; // force reflow
+
+      if (turn % 2 === 0) {
+        left.classList.add('attack-left');
+        setTimeout(() => right.classList.add('hit-shake'), 200);
+      } else {
+        right.classList.add('attack-right');
+        setTimeout(() => left.classList.add('hit-shake'), 200);
+      }
+
+      // Energy burst
+      setTimeout(() => {
+        clash.classList.add('burst');
+      }, 150);
+
+      turn++;
+    }, 1200);
+  }
+
+  function stopAttackExchange() {
+    if (battleAnimInterval) {
+      clearInterval(battleAnimInterval);
+      battleAnimInterval = null;
+    }
+    const left = document.getElementById('battleCharLeft');
+    const right = document.getElementById('battleCharRight');
+    const clash = document.getElementById('energyClash');
+    if (left) left.classList.remove('attack-left', 'hit-shake');
+    if (right) right.classList.remove('attack-right', 'hit-shake');
+    if (clash) clash.classList.remove('burst');
+  }
+
+  function showResult(msg) {
+    // Stop battle animations
+    stopAttackExchange();
+    document.getElementById('battleProgress').style.display = 'none';
+
+    // Screen flash
+    const flash = document.getElementById('screenFlash');
+    flash.classList.remove('flash');
+    void flash.offsetWidth;
+    flash.classList.add('flash');
+
+    const winnerPlayerId = msg.winner_player_id;
+    const p1Id = msg.player1.player_id;
+
+    // Highlight winner card
+    const winnerCard = (winnerPlayerId === p1Id)
+      ? document.getElementById('battleCharLeft')
+      : document.getElementById('battleCharRight');
+
+    // Glow winner card
+    winnerCard.classList.add('golden-glow');
+
+    // Transition to result screen
+    setTimeout(() => {
+      winnerCard.classList.remove('golden-glow');
+
+      stopAudio(seBattle);
+      const isWinner = winnerPlayerId === myPlayerId;
+      playSE(isWinner ? seWin : seLose);
+      const resultEl = document.getElementById('resultText');
+      resultEl.textContent = isWinner ? 'WIN!' : 'LOSE...';
+      resultEl.className = 'result-text ' + (isWinner ? 'result-win' : 'result-lose');
+
+      document.getElementById('resultReason').textContent = msg.reason || '';
+
+      showScreen('result');
+
+      // Animate result text
+      setTimeout(() => resultEl.classList.add('result-bounce'), 100);
+
+      // Confetti for winner
+      if (isWinner) startConfetti();
+    }, 2000);
+  }
+
+  // ---- Confetti ----
+  function startConfetti() {
+    stopConfetti();
+    const canvas = document.getElementById('confettiCanvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+
+    const colors = ['#f5576c', '#fda085', '#f6d365', '#667eea', '#43e97b', '#38f9d7', '#764ba2'];
+    const particles = [];
+    for (let i = 0; i < 120; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * -canvas.height,
+        w: Math.random() * 8 + 4,
+        h: Math.random() * 6 + 3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vy: Math.random() * 3 + 2,
+        vx: (Math.random() - 0.5) * 2,
+        rot: Math.random() * 360,
+        rotSpeed: (Math.random() - 0.5) * 10,
+      });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let active = false;
+      for (const p of particles) {
+        if (p.y < canvas.height + 20) active = true;
+        p.y += p.vy;
+        p.x += p.vx;
+        p.rot += p.rotSpeed;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot * Math.PI / 180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+      if (active) {
+        confettiRAF = requestAnimationFrame(draw);
+      }
+    }
+    confettiRAF = requestAnimationFrame(draw);
+  }
+
+  function stopConfetti() {
+    if (confettiRAF) {
+      cancelAnimationFrame(confettiRAF);
+      confettiRAF = null;
+    }
+    const canvas = document.getElementById('confettiCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  // ---- Rematch ----
+  function rematch() {
+    playSE(seClick);
+    if (ws) {
+      ws.close();
+    }
+    resetState();
+    startMatchmaking();
+  }
+
+  function resetState() {
+    stopAudio(seBattle);
+    stopAudio(seWin);
+    stopAudio(seLose);
+    stopAudio(bgm);
+    myPlayerId = null;
+    myCharacter = null;
+    capturedBase64 = null;
+    opponentCharReady = false;
+    opponentIsReady = false;
+    stopCountdown();
+    stopAttackExchange();
+    stopConfetti();
+    ws = null;
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+      cameraStream = null;
+    }
+    // Reset UI
+    document.getElementById('btnReady').disabled = false;
+    document.getElementById('btnReady').textContent = 'READY';
+    document.getElementById('analyzingIndicator').style.display = 'none';
+    document.getElementById('cameraVideo').style.display = 'block';
+    document.getElementById('capturedPreview').style.display = 'none';
+    document.getElementById('btnCapture').style.display = '';
+    document.getElementById('btnRetake').style.display = 'none';
+    document.getElementById('btnSubmitImage').style.display = 'none';
+    // Reset character images
+    document.getElementById('charImage').classList.remove('loaded');
+    document.getElementById('charImage').src = '';
+    document.getElementById('charImagePlaceholder').style.display = '';
+    document.getElementById('battle-p1-img').classList.remove('loaded');
+    document.getElementById('battle-p2-img').classList.remove('loaded');
+    // Reset battle animations
+    var left = document.getElementById('battleCharLeft');
+    var right = document.getElementById('battleCharRight');
+    if (left) { left.className = 'battle-char'; left.style.opacity = '0'; }
+    if (right) { right.className = 'battle-char'; right.style.opacity = '0'; }
+    var vs = document.getElementById('vsText');
+    if (vs) vs.className = 'vs-text';
+    document.getElementById('resultText').className = 'result-text';
+    stopSummonEffect();
+  }
+
+  // ---- Summon Effect ----
+  let summonRAF = null;
+  function startSummonEffect() {
+    stopSummonEffect();
+    playSE(seSummon);
+    const overlay = document.getElementById('summonOverlay');
+    overlay.style.display = 'block';
+
+    const canvas = document.getElementById('summonCanvas');
+    const ctx = canvas.getContext('2d');
+    let w = canvas.width = window.innerWidth;
+    let h = canvas.height = window.innerHeight;
+    let frame = 0;
+
+    const perspective = 1000;
+    let rotX = 0, rotY = 0;
+
+    const ROMAN_MAIN = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+    const ROMAN_SEQ = ["I","V","X","L","C","D","M","II","VI","XI","LI","CI","DI","MI"];
+
+    const rain = [];
+    for (let i = 0; i < 450; i++) {
+      rain.push({
+        x: Math.random()*6000-3000, y: Math.random()*4000-2000, z: Math.random()*6000-3000,
+        speed: 15+Math.random()*25, length: 80+Math.random()*200,
+        opacity: 0.15+Math.random()*0.7, width: 0.5+Math.random()*1.5
+      });
+    }
+    const swirl = [];
+    for (let i = 0; i < 80; i++) {
+      swirl.push({
+        angle: Math.random()*Math.PI*2, radius: 50+Math.random()*1000,
+        y: Math.random()*1800-900, speed: 0.008+Math.random()*0.035,
+        size: 1.2+Math.random()*3.5
+      });
+    }
+
+    function proj(x, y, z) {
+      let ty = y*Math.cos(rotX)-z*Math.sin(rotX);
+      let tz = y*Math.sin(rotX)+z*Math.cos(rotX);
+      let tx = x*Math.cos(rotY)+tz*Math.sin(rotY);
+      tz = -x*Math.sin(rotY)+tz*Math.cos(rotY);
+      tz += 1100;
+      const s = perspective/tz;
+      return { x: tx*s+w/2, y: ty*s+h/2, scale: s, depth: tz };
+    }
+
+    function line3d(pts, color, lw) {
+      ctx.beginPath(); ctx.lineWidth = lw; ctx.strokeStyle = color;
+      pts.forEach((p,i) => { const pp = proj(p.x,p.y,p.z); i===0?ctx.moveTo(pp.x,pp.y):ctx.lineTo(pp.x,pp.y); });
+      ctx.stroke();
+    }
+    function circle3d(r, seg, color, lw, off) {
+      const pts = [];
+      for (let i=0;i<=seg;i++) { const a=(i/seg)*Math.PI*2+(off||0); pts.push({x:Math.cos(a)*r,y:0,z:Math.sin(a)*r}); }
+      line3d(pts,color,lw);
+    }
+    function poly3d(r, sides, color, lw, rot) {
+      const pts = [];
+      for (let i=0;i<=sides;i++) { const a=(i/sides)*Math.PI*2+rot; pts.push({x:Math.cos(a)*r,y:0,z:Math.sin(a)*r}); }
+      line3d(pts,color,lw);
+    }
+    function text3d(r, arr, color, rot, fs) {
+      ctx.font = 'bold '+fs+'px "Cinzel"'; ctx.fillStyle = color; ctx.textAlign = 'center';
+      arr.forEach((t,i) => {
+        const a = (i/arr.length)*Math.PI*2+rot;
+        const p = proj(Math.cos(a)*r, 0, Math.sin(a)*r);
+        if (p.scale>0) { ctx.save(); ctx.translate(p.x,p.y); ctx.scale(p.scale,p.scale);
+          ctx.globalAlpha=Math.max(0,Math.min(1,p.scale*2-0.8)); ctx.fillText(t,0,0); ctx.restore(); }
+      });
+    }
+
+    function draw() {
+      frame++;
+      ctx.clearRect(0,0,w,h);
+      rotY = Math.sin(frame*0.0006)*0.75;
+      rotX = 1.28+Math.cos(frame*0.0012)*0.15;
+      const floatY = Math.sin(frame*0.012)*35;
+      const gold = 'rgba(212,175,55,0.9)', fadeGold = 'rgba(212,175,55,0.3)';
+
+      // Light rain
+      ctx.save(); ctx.shadowBlur=18; ctx.shadowColor='rgba(255,215,100,0.85)';
+      rain.forEach(p => {
+        p.y+=p.speed; if(p.y>1800) p.y=-1800;
+        const s=proj(p.x,p.y,p.z), e=proj(p.x,p.y+p.length,p.z);
+        if(s.scale>0){ const g=ctx.createLinearGradient(s.x,s.y,e.x,e.y);
+          g.addColorStop(0,'rgba(212,175,55,0)'); g.addColorStop(1,'rgba(255,250,210,'+s.scale*p.opacity+')');
+          ctx.strokeStyle=g; ctx.lineWidth=p.width*s.scale; ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(e.x,e.y); ctx.stroke(); }
+      });
+      ctx.restore();
+
+      // Magic circle
+      ctx.save();
+      text3d(480,ROMAN_MAIN,gold,frame*0.002,38);
+      circle3d(460,80,gold,2.5); circle3d(440,80,fadeGold,1);
+      poly3d(360,12,gold,2,-frame*0.0035);
+      text3d(280,ROMAN_SEQ,'rgba(212,175,55,0.65)',-frame*0.006,20);
+      poly3d(200,3,gold,4,frame*0.012); poly3d(200,3,gold,4,frame*0.012+Math.PI);
+      const cp=50+Math.sin(frame*0.07)*12; circle3d(cp,32,gold,6);
+
+      // Swirl particles
+      ctx.shadowBlur=22; ctx.shadowColor='rgba(255,200,0,1)';
+      swirl.forEach(p => {
+        p.angle+=p.speed;
+        const pp=proj(Math.cos(p.angle)*p.radius, p.y, Math.sin(p.angle)*p.radius);
+        if(pp.scale>0){ ctx.beginPath(); ctx.arc(pp.x,pp.y,p.size*pp.scale,0,Math.PI*2);
+          ctx.fillStyle='rgba(255,245,180,'+(0.8*pp.scale)+')'; ctx.fill(); }
+      });
+      ctx.restore();
+
+      // Center glow
+      ctx.globalCompositeOperation='lighter';
+      const c=proj(0,floatY,0);
+      const grd=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,550*c.scale);
+      grd.addColorStop(0,'rgba(212,175,55,0.35)'); grd.addColorStop(1,'transparent');
+      ctx.fillStyle=grd; ctx.fillRect(0,0,w,h);
+      ctx.globalCompositeOperation='source-over';
+
+      summonRAF = requestAnimationFrame(draw);
+    }
+    summonRAF = requestAnimationFrame(draw);
+
+    const onResize = () => { w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight; };
+    window.addEventListener('resize', onResize);
+    canvas._onResize = onResize;
+  }
+
+  function stopSummonEffect() {
+    stopAudio(seSummon);
+    if (summonRAF) { cancelAnimationFrame(summonRAF); summonRAF = null; }
+    const overlay = document.getElementById('summonOverlay');
+    overlay.style.display = 'none';
+    const canvas = document.getElementById('summonCanvas');
+    if (canvas._onResize) { window.removeEventListener('resize', canvas._onResize); canvas._onResize = null; }
+  }
+</script>
+
+<canvas id="cameraCanvas"></canvas>
+</body>
+</html>
